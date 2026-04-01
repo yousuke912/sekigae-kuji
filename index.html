@@ -217,7 +217,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
           <div class="how-step-num">4</div>
           <div class="how-step-body">
             <strong>テーブル設定・特別対応枠を入力 → くじ生成</strong><br>
-            テーブル数・人数・税理士・足の悪い方の人数を入力して「くじを生成する」を押してください。
+            テーブル数・人数・税理士・お足元が不自由な方の人数を入力して「くじを生成する」を押してください。
           </div>
         </div>
       </div>
@@ -300,7 +300,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
 
     <div class="section-label">特別対応枠（固定席）</div>
     <div class="field"><label>パートナー税理士の人数</label><input type="number" id="taxCount" min="0" value="0"></div>
-    <div class="field"><label>足の悪い方の人数</label><input type="number" id="mobilityCount" min="0" value="0"></div>
+    <div class="field"><label>お足元が不自由な方の人数</label><input type="number" id="mobilityCount" min="0" value="0"></div>
 
     <div class="section-label">塾生カテゴリ（PDF照合 or 手動入力）</div>
     <div class="field-row">
@@ -317,7 +317,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
 
     <div class="legend">
       <div class="legend-item"><div class="legend-dot" style="background:#fffde7;border-color:#f9a825;"></div>税理士様</div>
-      <div class="legend-item"><div class="legend-dot" style="background:#e8f5e9;border-color:#43a047;"></div>足の悪い方</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e8f5e9;border-color:#43a047;"></div>お足元が不自由な方</div>
       <div class="legend-item"><div class="legend-dot" style="background:#e3f2fd;border-color:#1976d2;"></div>初めての方</div>
       <div class="legend-item"><div class="legend-dot" style="background:#f3e5f5;border-color:#8e24aa;"></div>6ヶ月以内</div>
       <div class="legend-item"><div class="legend-dot" style="background:#fff;border-color:#b0bec5;"></div>6ヶ月以上</div>
@@ -820,7 +820,7 @@ function validate() {
   warn.style.display = 'none';
   info.innerHTML = `📋 合計 <b>${total}枚</b>（空席 ${cap-total}席）<br>
     👤 初めて <b>${v.firstTimeCount}</b>・6ヶ月以内 <b>${v.within6mCount}</b>・6ヶ月以上 <b>${v.over6mCount}</b>
-    ／ 税理士 <b>${v.taxCount}</b>・足の悪い方 <b>${v.mobilityCount}</b><br>
+    ／ 税理士 <b>${v.taxCount}</b>・お足元が不自由な方 <b>${v.mobilityCount}</b><br>
     🪑 <b>${Array.from({length:v.tableCount},(_,i)=>tblLabel(i)).join(', ')}</b>`;
   info.style.display = 'block';
   return { ...v, total };
