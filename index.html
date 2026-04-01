@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>懇親会 席替えくじ v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<style>
+:root { --primary: #2c5282; --green: #276749; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Hiragino Kaku Gothic ProN','Meiryo',sans-serif; background: #f7fafc; color: #2d3748; font-size: 14px; }
+
+/* ===== LAYOUT ===== */
+.page { max-width: 660px; margin: 0 auto; padding: 28px 20px; }
+h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: center; margin-bottom: 4px; }
+.subtitle { text-align: center; color: #718096; font-size: 13px; margin-bottom: 24px; }
+.badge { display:inline-block; background:#ebf8ff; color:#2b6cb0; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; margin-bottom:6px; }
+
+.card { background: white; border-radius: 12px; padding: 22px; box-shadow: 0 1px 8px rgba(0,0,0,0.08); margin-bottom: 16px; }
+.section-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #a0aec0; margin: 18px 0 10px; padding-bottom: 6px; border-bottom: 1px solid #e2e8f0; text-transform: uppercase; }
+.section-label:first-child { margin-top: 0; }
+
+/* ===== ACCORDION ===== */
+.accordion { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+.accordion-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; background: white; cursor: pointer;
+  font-size: 14px; font-weight: 700; color: var(--primary);
+  user-select: none; transition: background 0.15s;
+}
+.accordion-header:hover { background: #ebf8ff; }
+.accordion-arrow { font-size: 12px; transition: transform 0.25s; color: #a0aec0; }
+.accordion-arrow.open { transform: rotate(180deg); }
+.accordion-body { display: none; padding: 0 18px 18px; background: white; border-top: 1px solid #e2e8f0; }
+.accordion-body.open { display: block; }
+
+.how-steps { counter-reset: how; margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.how-step { display: flex; gap: 10px; align-items: flex-start; }
+.how-step-num {
+  counter-increment: how;
+  min-width: 24px; height: 24px; border-radius: 50%;
+  background: var(--primary); color: white;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.how-step-body { font-size: 13px; color: #4a5568; line-height: 1.6; }
+.how-step-body strong { color: #2d3748; }
+
+.notes-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.note-item { display: flex; gap: 8px; font-size: 13px; color: #4a5568; line-height: 1.6; }
+.note-icon { flex-shrink: 0; }
+
+/* ===== STEPS ===== */
+.step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.step-num { width: 26px; height: 26px; border-radius: 50%; background: var(--primary); color: white; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step-num.done { background: var(--green); }
+.step-title { font-size: 15px; font-weight: 700; color: #2d3748; }
+.step-status { font-size: 12px; color: #718096; margin-left: auto; }
+.step-status.ok { color: var(--green); font-weight: 600; }
+
+/* ===== FILE DROP ZONE ===== */
+.drop-zone { display: block; border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+.drop-zone:hover, .drop-zone.drag { border-color: var(--primary); background: #ebf8ff; }
+.drop-zone input { display: none; }
+.drop-zone .icon { font-size: 24px; margin-bottom: 6px; }
+.drop-zone p { font-size: 13px; color: #718096; }
+.drop-zone .fname { font-size: 13px; color: var(--primary); font-weight: 600; margin-top: 4px; }
+
+/* ===== BUTTONS ===== */
+.btn { padding: 10px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+.btn-primary { background: var(--primary); color: white; width: 100%; padding: 13px; font-size: 15px; margin-top: 8px; }
+.btn-primary:hover { background: #2a4a7f; }
+.btn-green { background: var(--green); color: white; }
+.btn-green:hover { background: #1e4d35; }
+.btn-gray { background: #4a5568; color: white; }
+.btn-gray:hover { background: #2d3748; }
+.btn-outline { background: white; color: var(--primary); border: 2px solid var(--primary); }
+.btn-sm { padding: 7px 14px; font-size: 13px; }
+
+/* ===== PROGRESS ===== */
+.progress-bar { height: 4px; background: #e2e8f0; border-radius: 2px; margin: 10px 0; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.3s; }
+
+/* ===== RESULT TABLE ===== */
+.result-summary { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.chip { display: flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 1.5px solid transparent; }
+.chip.first_time  { background:#e3f2fd; color:#0d47a1; border-color:#1976d2; }
+.chip.within_6m   { background:#f3e5f5; color:#6a1b9a; border-color:#8e24aa; }
+.chip.over_6m     { background:#f7fafc; color:#4a5568; border-color:#b0bec5; }
+.chip.unmatched   { background:#fff5f5; color:#c53030; border-color:#feb2b2; }
+
+.tbl-wrap { max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl th { background: #f7fafc; padding: 8px 10px; text-align: left; font-weight: 600; color: #4a5568; position: sticky; top: 0; border-bottom: 1px solid #e2e8f0; }
+.tbl td { padding: 6px 10px; border-bottom: 1px solid #f0f4f8; }
+.tbl tr:last-child td { border: none; }
+.cat-badge { display:inline-block; padding:2px 7px; border-radius:10px; font-size:11px; font-weight:700; }
+.cat-badge.first_time  { background:#e3f2fd; color:#0d47a1; }
+.cat-badge.within_6m   { background:#f3e5f5; color:#6a1b9a; }
+.cat-badge.over_6m     { background:#f7fafc; color:#4a5568; border:1px solid #e2e8f0; }
+.cat-badge.unmatched   { background:#fff5f5; color:#c53030; }
+
+/* ===== FORM ===== */
+.field { margin-bottom: 13px; }
+.field label { display: block; font-size: 13px; font-weight: 600; color: #4a5568; margin-bottom: 5px; }
+.field input[type=number], .field input[type=date] {
+  width: 100%; padding: 9px 13px; border: 1.5px solid #e2e8f0;
+  border-radius: 8px; font-size: 15px; color: #2d3748; -webkit-appearance: none;
+}
+.field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(44,82,130,0.1); }
+.field input[readonly] { background: #f7fafc; color: #718096; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.field-row .field { margin-bottom: 0; }
+
+.info-box { padding: 10px 13px; background: #ebf8ff; border: 1px solid #bee3f8; border-radius: 8px; color: #2c5282; font-size: 13px; line-height: 1.8; margin-top: 10px; }
+.warn-box { padding: 10px 13px; background: #fff5f5; border: 1px solid #feb2b2; border-radius: 8px; color: #c53030; font-size: 13px; margin-top: 10px; display: none; }
+
+.legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #4a5568; }
+.legend-dot { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid #a0aec0; flex-shrink: 0; }
+
+/* ===== PRINT CONTROLS ===== */
+.print-bar { display:none; background:white; border-bottom:1px solid #e2e8f0; padding:12px 20px; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap; position:sticky; top:0; z-index:10; }
+.print-bar.show { display:flex; }
+.print-bar .btn-print { background:var(--primary); color:white; padding:10px 28px; border:none; border-radius:8px; font-size:15px; font-weight:700; cursor:pointer; }
+
+/* ===== CARDS ===== */
+.cards-wrap { display:none; padding:16px; background:#e2e8f0; }
+.cards-wrap.show { display:block; }
+.card-page { background:white; width:210mm; min-height:297mm; margin:0 auto 16px; display:grid; grid-template-columns:repeat(4,1fr); box-shadow:0 2px 8px rgba(0,0,0,0.12); }
+
+.kuji-card { width:100%; aspect-ratio:52/74; border:0.5px solid #cbd5e0; display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:4px 4px 3px; page-break-inside:avoid; }
+.kuji-card.type-tax        { background:#fffde7; border-color:#f9a825; }
+.kuji-card.type-mobility   { background:#e8f5e9; border-color:#43a047; }
+.kuji-card.type-first_time { background:#e3f2fd; border-color:#1976d2; }
+.kuji-card.type-within_6m  { background:#f3e5f5; border-color:#8e24aa; }
+.kuji-card.type-over_6m    { background:#ffffff; border-color:#b0bec5; }
+.kuji-card.empty           { background:#f7fafc; border:0.5px dashed #e2e8f0; }
+
+.card-label { font-size:7px; font-weight:700; text-align:center; width:100%; }
+.type-tax      .card-label { color:#7b5800; }
+.type-mobility .card-label { color:#1b5e20; }
+.type-first_time .card-label { color:#0d47a1; }
+.type-within_6m  .card-label { color:#6a1b9a; }
+.type-over_6m    .card-label { color:#4a5568; }
+
+.rounds-area { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; width:100%; }
+.round-block { display:flex; flex-direction:column; align-items:center; line-height:1; }
+.table-letter { font-size:60pt; font-weight:900; letter-spacing:-2px; line-height:1; color:#1a202c; }
+.type-tax      .table-letter { color:#7b4f00; }
+.type-mobility .table-letter { color:#1a4731; }
+.type-first_time .table-letter { color:#0d47a1; }
+.type-within_6m  .table-letter { color:#6a1b9a; }
+.round-num { font-size:8px; color:#718096; font-weight:700; margin-top:2px; }
+.divider { width:70%; height:0.5px; background:#cbd5e0; margin:4px 0; }
+.type-tax      .divider { background:#f9a825; }
+.type-mobility .divider { background:#43a047; }
+.type-first_time .divider { background:#1976d2; }
+.type-within_6m  .divider { background:#8e24aa; }
+.card-foot { width:100%; text-align:center; }
+.card-note { font-size:5.5px; color:#718096; line-height:1.5; }
+.card-date-lbl { font-size:6px; color:#a0aec0; margin-top:1px; font-weight:600; letter-spacing:0.5px; }
+
+@media print {
+  @page { size:A4 portrait; margin:0; }
+  body { background:white; }
+  .page, .print-bar { display:none !important; }
+  .cards-wrap { display:block !important; padding:0; background:white; }
+  .card-page { width:210mm; height:297mm; margin:0; box-shadow:none; page-break-after:always; break-after:page; }
+  .card-page:last-child { page-break-after:auto; break-after:auto; }
+  .table-letter { font-size:22mm; }
+  .card-label { font-size:5pt; }
+  .round-num { font-size:6pt; }
+  .card-note { font-size:4pt; }
+  .card-date-lbl { font-size:5pt; }
+}
+</style>
+</head>
+<body>
+
+<div class="page" id="formSection">
+  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v2 — PDF+CSV対応</span></div>
+  <h1>🎲 懇親会 席替えくじ</h1>
+  <p class="subtitle">PDFとCSVから自動でカテゴリ分けして席を決めます</p>
+
+  <!-- ACCORDION: 使い方 -->
+  <div class="accordion">
+    <div class="accordion-header" onclick="toggleAccordion('howTo')">
+      <span>📖 使い方・注意事項</span>
+      <span class="accordion-arrow" id="arrowHowTo">▼</span>
+    </div>
+    <div class="accordion-body" id="howTo">
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="how-step-num">1</div>
+          <div class="how-step-body">
+            <strong>CSVを読み込む（毎回）</strong><br>
+            「SMG経営塾リスト管理 - 新：入会管理」の最新CSVをドロップ。常に更新されるため毎回読み込んでください。
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">2</div>
+          <div class="how-step-body">
+            <strong>参加者PDFを読み込む（毎回）</strong><br>
+            smoothin.tech からエクスポートしたPDFをドロップ。ファイル名の日付を開催日として自動セットします。
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">3</div>
+          <div class="how-step-body">
+            <strong>照合結果を確認 → 「この人数で設定する」</strong><br>
+            PDFの氏名とCSVを照合し、<em>初回決済日</em>からカテゴリを自動判定。「この人数で設定する」で下の入力欄に反映されます。
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-step-num">4</div>
+          <div class="how-step-body">
+            <strong>テーブル設定・特別対応枠を入力 → くじ生成</strong><br>
+            テーブル数・人数・税理士・足の悪い方の人数を入力して「くじを生成する」を押してください。
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; padding-top:14px; border-top:1px solid #e2e8f0;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:#a0aec0;margin-bottom:10px;">注意事項</div>
+        <div class="notes-list">
+          <div class="note-item"><span class="note-icon">⚠️</span><span>CSVに名前が見つからない場合は「未照合」になります。照合結果の人数を確認し、手動で調整してください。</span></div>
+          <div class="note-item"><span class="note-icon">✅</span><span>PDFに「初参加」のテキストがある行は、CSVの入会日に関わらず<strong>「初めての方」</strong>として判定します。</span></div>
+          <div class="note-item"><span class="note-icon">📄</span><span>PDFのレイアウトが複雑な場合、照合率が下がることがあります。その際は照合結果を確認しながら人数を手動で微調整してください。</span></div>
+          <div class="note-item"><span class="note-icon">📅</span><span>カテゴリ判定の基準：入会月＝当月→<strong>初めての方</strong>、1〜6ヶ月前→<strong>6ヶ月以内</strong>、7ヶ月以上前→<strong>6ヶ月以上</strong></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1: CSV -->
+  <div class="card">
+    <div class="step-header">
+      <div class="step-num" id="step1num">1</div>
+      <div class="step-title">入会管理CSV を読み込む</div>
+      <div class="step-status" id="csvStatus">未読み込み</div>
+    </div>
+    <p style="font-size:12px;color:#718096;margin-bottom:10px;">「SMG経営塾リスト管理 - 新：入会管理」の最新CSVを毎回読み込んでください（常に更新されるため）。</p>
+    <label class="drop-zone" id="csvDrop">
+      <input type="file" id="csvFile" accept=".csv,.tsv">
+      <div class="icon">📊</div>
+      <p>クリックまたはドロップ<br><small>SMG経営塾リスト管理 CSV</small></p>
+      <div class="fname" id="csvFname"></div>
+    </label>
+  </div>
+
+  <!-- STEP 2: PDF -->
+  <div class="card">
+    <div class="step-header">
+      <div class="step-num" id="step2num">2</div>
+      <div class="step-title">参加者PDF を読み込む</div>
+      <div class="step-status" id="pdfStatus">未読み込み</div>
+    </div>
+    <p style="font-size:12px;color:#718096;margin-bottom:10px;">smoothin.tech からエクスポートしたPDF（日付ごとに毎回入れ替え）。CSVと照合して初めて・6ヶ月以内・6ヶ月以上を自動判定します。</p>
+    <label class="drop-zone" id="pdfDrop">
+      <input type="file" id="pdfFile" accept=".pdf">
+      <div class="icon">📄</div>
+      <p>クリックまたはドロップ<br><small>smoothin.tech - YYYYMMDD.pdf</small></p>
+      <div class="fname" id="pdfFname"></div>
+    </label>
+    <div id="pdfProgress" style="display:none;">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <p style="font-size:12px;color:#718096;text-align:center;" id="progressText">読み込み中...</p>
+    </div>
+  </div>
+
+  <!-- STEP 3: RESULT -->
+  <div class="card" id="resultCard" style="display:none;">
+    <div class="step-header">
+      <div class="step-num done">3</div>
+      <div class="step-title">照合結果</div>
+    </div>
+    <div class="result-summary" id="resultSummary"></div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr><th>#</th><th>氏名</th><th>初回決済日</th><th>カテゴリ</th></tr></thead>
+        <tbody id="resultBody"></tbody>
+      </table>
+    </div>
+    <p style="font-size:11px;color:#a0aec0;margin-top:6px;">※ CSVに存在しない名前は「未照合」として手動入力が必要です</p>
+    <button class="btn btn-green btn-sm" style="margin-top:8px;" onclick="applyResult()">✅ この人数で設定する</button>
+  </div>
+
+  <!-- STEP 4: SETTINGS -->
+  <div class="card">
+    <div class="step-header">
+      <div class="step-num" id="step4num">4</div>
+      <div class="step-title">席替え設定</div>
+    </div>
+
+    <div class="section-label">テーブル設定</div>
+    <div class="field"><label>テーブル数</label><input type="number" id="tableCount" min="1" max="52" placeholder="例：12"></div>
+    <div class="field"><label>1テーブルの人数</label><input type="number" id="perTable" min="1" max="20" placeholder="例：4"></div>
+
+    <div class="section-label">特別対応枠（固定席）</div>
+    <div class="field"><label>パートナー税理士の人数</label><input type="number" id="taxCount" min="0" value="0"></div>
+    <div class="field"><label>足の悪い方の人数</label><input type="number" id="mobilityCount" min="0" value="0"></div>
+
+    <div class="section-label">塾生カテゴリ（PDF照合 or 手動入力）</div>
+    <div class="field-row">
+      <div class="field"><label>① 初めての方</label><input type="number" id="firstTimeCount" min="0" value="0" placeholder="0"></div>
+      <div class="field"><label>② 6ヶ月以内</label><input type="number" id="within6mCount" min="0" value="0" placeholder="0"></div>
+      <div class="field"><label>③ 6ヶ月以上</label><input type="number" id="over6mCount" min="0" value="0" placeholder="0"></div>
+    </div>
+
+    <div class="section-label">開催日</div>
+    <div class="field"><input type="date" id="eventDate" value="2026-03-27"></div>
+
+    <div class="warn-box" id="warnBox"></div>
+    <div class="info-box" id="infoBox" style="display:none;"></div>
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#fffde7;border-color:#f9a825;"></div>税理士様</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e8f5e9;border-color:#43a047;"></div>足の悪い方</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e3f2fd;border-color:#1976d2;"></div>初めての方</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f3e5f5;border-color:#8e24aa;"></div>6ヶ月以内</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fff;border-color:#b0bec5;"></div>6ヶ月以上</div>
+    </div>
+
+    <button class="btn btn-primary" onclick="onGenerate()">🎲 くじを生成する</button>
+  </div>
+</div>
+
+<!-- PRINT BAR -->
+<div class="print-bar" id="printBar">
+  <button class="btn btn-outline btn-sm" onclick="goBack()">← 入力に戻る</button>
+  <span style="font-size:13px;color:#718096;" id="cardCountInfo"></span>
+  <button class="btn btn-gray btn-sm" onclick="onGenerate()">🔀 再抽選</button>
+  <button class="btn-print" onclick="downloadPDF()">📄 PDFダウンロード</button>
+  <button class="btn-print" style="background:#4a5568;" onclick="window.print()">🖨️ 印刷する</button>
+</div>
+
+<div class="cards-wrap" id="cardsWrap"></div>
+
+<script>
+// ============================================================
+// PDF.js worker
+// ============================================================
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+// ============================================================
+// STATE
+// ============================================================
+let memberMap = new Map(); // normalizedName → { joinDate, status }
+let csvLoaded = false;
+
+// ============================================================
+// UTILS
+// ============================================================
+const normName = s => (s || '').replace(/[\s　\u3000]/g, '');
+const tblLabel = t => t < 0 ? '?' : t < 26
+  ? String.fromCharCode(65 + t)
+  : String.fromCharCode(64 + Math.floor(t / 26)) + String.fromCharCode(65 + (t % 26));
+const fmtDate = s => s.replace(/-/g, '.');
+
+// Parse date string → Date object (supports YYYY/MM/DD, YYYY-MM-DD)
+function parseJpDate(s) {
+  if (!s) return null;
+  const m = s.trim().replace(/\//g, '-').match(/^(\d{2,4})-(\d{1,2})-(\d{1,2})/);
+  if (!m) return null;
+  let [, y, mo, d] = m;
+  if (y.length === 2) y = '20' + y;
+  return new Date(+y, +mo - 1, +d);
+}
+
+function monthsDiff(fromDate, toDate) {
+  return (toDate.getFullYear() - fromDate.getFullYear()) * 12
+       + (toDate.getMonth() - fromDate.getMonth());
+}
+
+function categorize(joinDateStr, eventDate) {
+  const d = parseJpDate(joinDateStr);
+  if (!d) return 'unmatched';
+  const months = monthsDiff(d, eventDate);
+  if (months <= 0) return 'first_time';   // 当月入会
+  if (months <= 6) return 'within_6m';
+  return 'over_6m';
+}
+
+// ============================================================
+// CSV PARSER (handles quoted fields with embedded newlines)
+// ============================================================
+function parseCSVFull(text) {
+  const records = [];
+  let row = [], field = '', inQ = false, i = 0;
+  while (i < text.length) {
+    const c = text[i], n = text[i + 1];
+    if (inQ) {
+      if (c === '"' && n === '"') { field += '"'; i += 2; }
+      else if (c === '"') { inQ = false; i++; }
+      else { field += c; i++; }
+    } else {
+      if (c === '"') { inQ = true; i++; }
+      else if (c === ',') { row.push(field); field = ''; i++; }
+      else if (c === '\r' && n === '\n') { row.push(field); records.push(row); row = []; field = ''; i += 2; }
+      else if (c === '\n' || c === '\r') { row.push(field); records.push(row); row = []; field = ''; i++; }
+      else { field += c; i++; }
+    }
+  }
+  if (field || row.length) { row.push(field); records.push(row); }
+  return records;
+}
+
+function buildMemberMap(csvText) {
+  const records = parseCSVFull(csvText);
+
+  // Find header row (first col = '管理No.')
+  const hIdx = records.findIndex(r => (r[0] || '').trim() === '管理No.');
+  if (hIdx < 0) return { ok: false, msg: '管理No.列が見つかりません' };
+
+  // Column indices for this specific CSV format
+  const NAME_COL   = 6;   // 氏名
+  const STATUS_COL = 4;   // ステータス
+  const DATE_COL   = 25;  // 初回決済日
+
+  const map = new Map();
+  let count = 0;
+
+  for (let i = hIdx + 1; i < records.length; i++) {
+    const r = records[i];
+    const id = (r[0] || '').trim();
+    if (!/^\d+$/.test(id)) continue; // skip non-data rows
+
+    const name     = normName(r[NAME_COL]   || '');
+    const status   = (r[STATUS_COL] || '').trim();
+    const joinDate = (r[DATE_COL]   || '').trim();
+
+    if (name) {
+      map.set(name, { joinDate, status });
+      count++;
+    }
+  }
+
+  return { ok: true, map, count };
+}
+
+// ============================================================
+// CSV FILE HANDLER
+// ============================================================
+function setupCSVDrop() {
+  const drop = document.getElementById('csvDrop');
+  const input = document.getElementById('csvFile');
+
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('drag');
+    loadCSVFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', e => loadCSVFile(e.target.files[0]));
+}
+
+function loadCSVFile(file) {
+  if (!file) return;
+  document.getElementById('csvFname').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const result = buildMemberMap(e.target.result);
+    if (!result.ok) {
+      document.getElementById('csvStatus').textContent = '❌ ' + result.msg;
+      return;
+    }
+    memberMap = result.map;
+    csvLoaded = true;
+    // キャッシュはしない（毎回最新CSVを読み込む運用のため）
+    document.getElementById('csvStatus').className = 'step-status ok';
+    document.getElementById('csvStatus').textContent = `✅ ${result.count}人読み込み済み`;
+    document.getElementById('step1num').classList.add('done');
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function tryRestoreCSV() {
+  // キャッシュ復元なし（毎回最新CSVを読み込む）
+}
+
+// ============================================================
+// PDF PARSER — extract attendee names using coordinate-based row grouping
+// ============================================================
+async function parsePDFFile(file) {
+  const ab = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+  const total = pdf.numPages;
+  const attendees = [];
+  const MEMBER_ID_RE = /^1\d{5}$/;
+  const JP_RE = /[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]/;
+
+  // 懇親会(I列)チェックボックスの位置 (pdfminer解析より確認済み)
+  // 外枠円: X=397.2〜402.7, 塗り矩形: X=397.8〜402.0
+  const CHECKBOX_X      = 400; // チェックボックス中心X (PDF座標, 単位:pt)
+  const CHECKBOX_Y_OFF  = 3;   // テキストベースラインより約3pt上がチェック中心
+  const SCALE           = 1.0; // レンダリング倍率
+
+  for (let pg = 1; pg <= total; pg++) {
+    const pct = Math.round((pg / total) * 100);
+    document.getElementById('progressFill').style.width = pct + '%';
+    document.getElementById('progressText').textContent =
+      `${pg} / ${total} ページ処理中（懇親会チェック検出）...`;
+
+    const page = await pdf.getPage(pg);
+
+    // ── キャンバスレンダリング（チェックボックスはグラフィックなのでピクセルで判定）──
+    const viewport = page.getViewport({ scale: SCALE });
+    const canvas = document.createElement('canvas');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    // ── テキスト抽出 ──
+    const tc = await page.getTextContent();
+    const groups = [];
+    tc.items.forEach(item => {
+      if (!item.str.trim()) return;
+      const y = item.transform[5];
+      const x = item.transform[4];
+      let g = groups.find(g => Math.abs(g.y - y) <= 3);
+      if (!g) { g = { y, items: [] }; groups.push(g); }
+      g.items.push({ text: item.str.trim(), x });
+    });
+    groups.sort((a, b) => b.y - a.y);
+
+    for (const g of groups) {
+      const row   = g.items.sort((a, b) => a.x - b.x);
+      const texts = row.map(r => r.text);
+
+      // 会員番号を探す
+      const midIdx = texts.findIndex(t => MEMBER_ID_RE.test(t));
+      if (midIdx < 0) continue;
+
+      // 氏名 = 会員番号直後の日本語テキスト
+      let name = '';
+      for (let j = midIdx + 1; j < texts.length; j++) {
+        if (JP_RE.test(texts[j]) && texts[j].length >= 2) { name = texts[j]; break; }
+      }
+      if (!name) continue;
+
+      // ── 懇親会チェックボックスの判定（ピクセルサンプリング）──
+      // PDF Y はページ下端起点 → canvas Y はページ上端起点なので反転
+      const cX = Math.round(CHECKBOX_X * SCALE);
+      const cY = Math.round(viewport.height - (g.y + CHECKBOX_Y_OFF) * SCALE);
+
+      let isChecked = false;
+      try {
+        // チェックボックス内部の中心 4×4px をサンプリング（外枠の円を避ける）
+        const imgData = ctx.getImageData(cX - 2, cY - 2, 4, 4);
+        for (let px = 0; px < imgData.data.length; px += 4) {
+          const r = imgData.data[px], g2 = imgData.data[px+1],
+                b = imgData.data[px+2], a  = imgData.data[px+3];
+          // 不透明 かつ 非白 → 塗りつぶし有 → チェック済み
+          if (a > 128 && (r < 180 || g2 < 180 || b < 180)) { isChecked = true; break; }
+        }
+      } catch (_) {
+        isChecked = true; // getImageData 失敗時は安全側（含める）
+      }
+
+      if (!isChecked) continue; // 懇親会チェックなし → スキップ
+
+      const before = texts.slice(0, midIdx).join(' ');
+      let hint = null;
+      if (/初参加/.test(before))              hint = 'first_time';
+      else if (/6ヶ月|６ヶ月|6か月/.test(before)) hint = 'within_6m';
+
+      attendees.push({ name: normName(name), hint, rawName: name });
+    }
+
+    // メモリ解放
+    canvas.width = 0; canvas.height = 0;
+  }
+
+  return attendees;
+}
+
+// ============================================================
+// PDF FILE HANDLER
+// ============================================================
+function setupPDFDrop() {
+  const drop = document.getElementById('pdfDrop');
+  const input = document.getElementById('pdfFile');
+
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('drag');
+    loadPDFFile(e.dataTransfer.files[0]);
+  });
+  input.addEventListener('change', e => loadPDFFile(e.target.files[0]));
+}
+
+async function loadPDFFile(file) {
+  if (!file) return;
+  document.getElementById('pdfFname').textContent = file.name;
+  document.getElementById('pdfProgress').style.display = 'block';
+  document.getElementById('pdfStatus').textContent = '解析中...';
+
+  // Extract event date from filename (YYYYMMDD) if possible
+  const match = file.name.match(/(\d{8})/);
+  if (match) {
+    const s = match[1];
+    const iso = `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+    document.getElementById('eventDate').value = iso;
+  }
+
+  try {
+    const attendees = await parsePDFFile(file);
+    showMatchResults(attendees);
+
+    document.getElementById('pdfProgress').style.display = 'none';
+    document.getElementById('pdfStatus').className = 'step-status ok';
+    document.getElementById('pdfStatus').textContent = `✅ ${attendees.length}人抽出`;
+    document.getElementById('step2num').classList.add('done');
+  } catch(err) {
+    document.getElementById('pdfProgress').style.display = 'none';
+    document.getElementById('pdfStatus').textContent = '❌ エラー: ' + err.message;
+    console.error(err);
+  }
+}
+
+// ============================================================
+// FUZZY NAME MATCHING
+// ============================================================
+
+// レーベンシュタイン距離（文字の編集距離）
+function levenshtein(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({length: m+1}, (_, i) =>
+    Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i-1] === b[j-1]
+        ? dp[i-1][j-1]
+        : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+  return dp[m][n];
+}
+
+// 名前を正規化（スペース除去 + 全角→半角 + ひらがな→カタカナ）
+function deepNorm(s) {
+  return (s || '')
+    .replace(/[\s　\u3000]/g, '')           // スペース除去
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c =>      // 全角英数→半角
+      String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+    .replace(/[\u3041-\u3096]/g, c =>       // ひらがな→カタカナ
+      String.fromCharCode(c.charCodeAt(0) + 0x60));
+}
+
+// CSVの名前マップをdeepNorm済みキーでも参照できるよう拡張
+let memberMapNorm = new Map(); // deepNorm(name) → { joinDate, status, originalName }
+
+function rebuildNormMap() {
+  memberMapNorm = new Map();
+  for (const [name, data] of memberMap) {
+    memberMapNorm.set(deepNorm(name), { ...data, originalName: name });
+  }
+}
+
+// ファジーマッチ: PDF名 → CSV候補を返す
+// confidence: 'exact' | 'prefix' | 'fuzzy'
+function fuzzyLookup(pdfName) {
+  const norm = deepNorm(pdfName);
+
+  // 1. 完全一致
+  const exact = memberMapNorm.get(norm);
+  if (exact) return { ...exact, confidence: 'exact' };
+
+  let best = null, bestScore = Infinity;
+
+  for (const [csvNorm, data] of memberMapNorm) {
+    const csvLen = csvNorm.length, pdfLen = norm.length;
+
+    // 2. 前方一致（苗字のみ、省略表記など）
+    //    例: PDF「藤井」→ CSV「藤井慶太郎」 / PDF「藤井慶太郎」→ CSV「藤井」
+    if (csvNorm.startsWith(norm) || norm.startsWith(csvNorm)) {
+      const shorter = Math.min(pdfLen, csvLen);
+      const longer  = Math.max(pdfLen, csvLen);
+      // 短い方が2文字以上で、長い方の50%以上ならマッチとみなす
+      if (shorter >= 2 && shorter / longer >= 0.4) {
+        const score = longer - shorter; // 差が小さいほど優先
+        if (score < bestScore) { bestScore = score; best = { ...data, confidence: 'prefix' }; }
+      }
+      continue;
+    }
+
+    // 3. 編集距離（1〜2文字の表記ゆれ）
+    //    例:「齋藤」→「斉藤」/「渡辺」→「渡邊」
+    if (Math.abs(pdfLen - csvLen) <= 2) {
+      const dist = levenshtein(norm, csvNorm);
+      const maxLen = Math.max(pdfLen, csvLen);
+      // 距離2以下 かつ 全体の30%以内のゆれ
+      if (dist <= 2 && dist / maxLen <= 0.3) {
+        if (dist < bestScore) { bestScore = dist; best = { ...data, confidence: 'fuzzy' }; }
+      }
+    }
+  }
+
+  return best; // null なら未照合
+}
+
+// ============================================================
+// MATCH & SHOW RESULTS
+// ============================================================
+function showMatchResults(attendees) {
+  rebuildNormMap(); // ファジー用マップを最新化
+
+  const eventDate = new Date(document.getElementById('eventDate').value || '2026-03-27');
+  const counts = { first_time: 0, within_6m: 0, over_6m: 0, unmatched: 0 };
+  const rows = [];
+  const seen = new Set();
+
+  for (const att of attendees) {
+    if (seen.has(att.name)) continue;
+    seen.add(att.name);
+
+    const match = fuzzyLookup(att.name);
+    let cat, joinDate, confidence;
+
+    if (match) {
+      joinDate   = match.joinDate;
+      confidence = match.confidence;
+      cat        = categorize(joinDate, eventDate);
+      if (att.hint === 'first_time') cat = 'first_time';
+    } else {
+      joinDate   = '—';
+      confidence = 'unmatched';
+      cat        = att.hint || 'unmatched';
+    }
+
+    counts[cat] = (counts[cat] || 0) + 1;
+    rows.push({ name: att.rawName, joinDate, cat, confidence,
+                matchedTo: match?.originalName || null });
+  }
+
+  const catLabel = {
+    first_time: '初めての方', within_6m: '6ヶ月以内',
+    over_6m: '6ヶ月以上',    unmatched: '未照合'
+  };
+  const confLabel = { exact: '', prefix: '推測', fuzzy: '推測', unmatched: '' };
+  const confStyle = {
+    exact: '', prefix: 'color:#d97706;font-size:10px;margin-left:3px;',
+    fuzzy: 'color:#d97706;font-size:10px;margin-left:3px;', unmatched: ''
+  };
+
+  // サマリーチップ
+  document.getElementById('resultSummary').innerHTML =
+    Object.entries(counts).filter(([,n])=>n>0).map(([cat,n])=>
+      `<div class="chip ${cat}">${catLabel[cat]}：${n}人</div>`
+    ).join('');
+
+  // テーブル（推測マッチは元の名前も表示）
+  document.getElementById('resultBody').innerHTML = rows.map((r, i) => {
+    const nameCell = r.matchedTo && r.matchedTo !== r.name && r.confidence !== 'exact'
+      ? `${r.name}<br><small style="color:#a0aec0">→ CSV:${r.matchedTo}</small>`
+      : r.name;
+    const confBadge = confLabel[r.confidence]
+      ? `<span style="${confStyle[r.confidence]}">⚡推測</span>` : '';
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${nameCell}</td>
+      <td>${r.joinDate}</td>
+      <td><span class="cat-badge ${r.cat}">${catLabel[r.cat]}</span>${confBadge}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('resultCard').style.display = 'block';
+  window._matchCounts = counts;
+}
+
+function applyResult() {
+  const c = window._matchCounts || {};
+  document.getElementById('firstTimeCount').value = c.first_time || 0;
+  document.getElementById('within6mCount').value  = c.within_6m  || 0;
+  document.getElementById('over6mCount').value    = c.over_6m    || 0;
+  validate();
+  // Scroll to settings
+  document.getElementById('step4num').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ============================================================
+// FORM VALIDATION
+// ============================================================
+function getVals() {
+  return {
+    tableCount:     parseInt(document.getElementById('tableCount').value)     || 0,
+    perTable:       parseInt(document.getElementById('perTable').value)       || 0,
+    taxCount:       parseInt(document.getElementById('taxCount').value)       || 0,
+    mobilityCount:  parseInt(document.getElementById('mobilityCount').value)  || 0,
+    firstTimeCount: parseInt(document.getElementById('firstTimeCount').value) || 0,
+    within6mCount:  parseInt(document.getElementById('within6mCount').value)  || 0,
+    over6mCount:    parseInt(document.getElementById('over6mCount').value)    || 0,
+  };
+}
+
+function validate() {
+  const v = getVals();
+  const total = v.taxCount + v.mobilityCount + v.firstTimeCount + v.within6mCount + v.over6mCount;
+  const cap   = v.tableCount * v.perTable;
+  const warn  = document.getElementById('warnBox');
+  const info  = document.getElementById('infoBox');
+  const errs  = [];
+
+  if (!v.tableCount) errs.push('テーブル数を入力');
+  if (!v.perTable)   errs.push('1テーブルの人数を入力');
+  if (v.tableCount > 52) errs.push('テーブル数は52以下');
+  if (total < 1)     errs.push('人数の合計が0');
+  if (v.tableCount && v.perTable && total > cap)
+    errs.push(`合計${total}人 > 席数${cap}席`);
+
+  if (errs.length) {
+    warn.textContent = errs.join(' / ');
+    warn.style.display = 'block';
+    info.style.display = 'none';
+    return null;
+  }
+  warn.style.display = 'none';
+  info.innerHTML = `📋 合計 <b>${total}枚</b>（空席 ${cap-total}席）<br>
+    👤 初めて <b>${v.firstTimeCount}</b>・6ヶ月以内 <b>${v.within6mCount}</b>・6ヶ月以上 <b>${v.over6mCount}</b>
+    ／ 税理士 <b>${v.taxCount}</b>・足の悪い方 <b>${v.mobilityCount}</b><br>
+    🪑 <b>${Array.from({length:v.tableCount},(_,i)=>tblLabel(i)).join(', ')}</b>`;
+  info.style.display = 'block';
+  return { ...v, total };
+}
+
+// ============================================================
+// SEATING ALGORITHM
+// ============================================================
+function generateSeating(tc, pt, tax, mob, ft, w6, o6) {
+  const used = new Array(tc).fill(0);
+
+  function assignEvenly(count, start) {
+    const r1 = [];
+    let cur = start % tc;
+    for (let i = 0; i < count; i++) {
+      let ok = false;
+      for (let a = 0; a < tc * pt; a++) {
+        const t = (cur + a) % tc;
+        if (used[t] < pt) { r1.push(t); used[t]++; cur = (t+1)%tc; ok=true; break; }
+      }
+      if (!ok) r1.push(-1);
+    }
+    return r1;
+  }
+
+  function derange(r1) {
+    const r2 = new Array(r1.length).fill(-1);
+    const grp = {};
+    for (let t = 0; t < tc; t++) grp[t] = [];
+    r1.forEach((t, i) => { if (t >= 0) grp[t].push(i); });
+    for (let t = 0; t < tc; t++)
+      grp[t].forEach((idx, rank) => { r2[idx] = (t + rank + 1) % tc; });
+    return r2;
+  }
+
+  const people = [];
+
+  // Mobility: table A (0), stays both rounds
+  for (let i = 0; i < mob; i++) { if (used[0] < pt) used[0]++; people.push({type:'mobility',r1:tblLabel(0),r2:tblLabel(0)}); }
+
+  // Tax: round-robin, stays both rounds
+  assignEvenly(tax, 0).forEach(t => people.push({type:'tax',r1:tblLabel(t),r2:tblLabel(t)}));
+
+  // 初めての方
+  const ftR1 = assignEvenly(ft, 0), ftR2 = derange(ftR1);
+  ftR1.forEach((t,i) => people.push({type:'first_time',r1:tblLabel(t),r2:tblLabel(ftR2[i])}));
+
+  // 6ヶ月以内 (staggered start for even spread)
+  const w6R1 = assignEvenly(w6, Math.floor(tc/3)), w6R2 = derange(w6R1);
+  w6R1.forEach((t,i) => people.push({type:'within_6m',r1:tblLabel(t),r2:tblLabel(w6R2[i])}));
+
+  // 6ヶ月以上
+  const o6R1 = assignEvenly(o6, Math.floor(tc*2/3)), o6R2 = derange(o6R1);
+  o6R1.forEach((t,i) => people.push({type:'over_6m',r1:tblLabel(t),r2:tblLabel(o6R2[i])}));
+
+  // Sort: special first (1ページ目にまとめ) → 初めて → 6ヶ月以内 → 6ヶ月以上
+  const ord = {mobility:0,tax:1,first_time:2,within_6m:3,over_6m:4};
+  people.sort((a,b) => ord[a.type] - ord[b.type]);
+  return people;
+}
+
+// ============================================================
+// CARD HTML
+// ============================================================
+const LABELS = {tax:'パートナー税理士様',mobility:'',first_time:'初めての方',within_6m:'6ヶ月以内',over_6m:'6ヶ月以上'};
+
+function cardHTML(p, dt) {
+  return `<div class="kuji-card type-${p.type}">
+    <div class="card-label">${LABELS[p.type]}</div>
+    <div class="rounds-area">
+      <div class="round-block"><div class="table-letter">${p.r1}</div><div class="round-num">1</div></div>
+      <div class="divider"></div>
+      <div class="round-block"><div class="table-letter">${p.r2}</div><div class="round-num">2</div></div>
+    </div>
+    <div class="card-foot">
+      <div class="card-note">ネームプレートの後ろへ<br>お入れください</div>
+      <div class="card-date-lbl">${dt}</div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// GENERATE & RENDER
+// ============================================================
+function onGenerate() {
+  const p = validate();
+  if (!p) return;
+  const dt = fmtDate(document.getElementById('eventDate').value || '2026-03-27');
+  const people = generateSeating(p.tableCount,p.perTable,p.taxCount,p.mobilityCount,p.firstTimeCount,p.within6mCount,p.over6mCount);
+  renderCards(people, dt, p.total);
+}
+
+function renderCards(people, dt, total) {
+  const PER = 16;
+  const wrap = document.getElementById('cardsWrap');
+  wrap.innerHTML = '';
+
+  const padded = [...people];
+  while (padded.length % 4) padded.push(null);
+
+  for (let pg = 0; pg < Math.ceil(padded.length / PER); pg++) {
+    const el = document.createElement('div');
+    el.className = 'card-page';
+    const slice = padded.slice(pg*PER, (pg+1)*PER);
+    while (slice.length < PER) slice.push(null);
+    slice.forEach(p => { el.innerHTML += p ? cardHTML(p, dt) : '<div class="kuji-card empty"></div>'; });
+    wrap.appendChild(el);
+  }
+
+  document.getElementById('formSection').style.display = 'none';
+  document.getElementById('printBar').classList.add('show');
+  document.getElementById('cardsWrap').classList.add('show');
+  document.getElementById('cardCountInfo').textContent =
+    `${total}枚 / ${Math.ceil(padded.length/PER)}ページ`;
+}
+
+function downloadPDF() {
+  const btn = document.querySelector('.btn-print');
+  const orig = btn.textContent;
+  btn.textContent = '⏳ 生成中...';
+  btn.disabled = true;
+
+  const el = document.getElementById('cardsWrap');
+  const dt = document.getElementById('cardCountInfo').textContent.replace(/\s/g,'') || '席替えくじ';
+  html2pdf().set({
+    margin: 0,
+    filename: `席替えくじ_${dt}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  }).from(el).save().then(() => {
+    btn.textContent = orig;
+    btn.disabled = false;
+  });
+}
+
+function goBack() {
+  document.getElementById('formSection').style.display = 'block';
+  document.getElementById('printBar').classList.remove('show');
+  document.getElementById('cardsWrap').classList.remove('show');
+  document.getElementById('cardsWrap').innerHTML = '';
+}
+
+// ============================================================
+// ACCORDION
+// ============================================================
+function toggleAccordion(id) {
+  const body  = document.getElementById(id);
+  const arrow = document.getElementById('arrow' + id.charAt(0).toUpperCase() + id.slice(1));
+  const isOpen = body.classList.toggle('open');
+  arrow.classList.toggle('open', isOpen);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+setupCSVDrop();
+setupPDFDrop();
+tryRestoreCSV();
+
+['tableCount','perTable','taxCount','mobilityCount','firstTimeCount','within6mCount','over6mCount'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => {
+    const v = getVals();
+    if (v.tableCount && v.perTable) validate();
+    else document.getElementById('infoBox').style.display = 'none';
+  });
+});
+</script>
+</body>
+</html>
