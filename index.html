@@ -533,7 +533,7 @@ async function parsePDFFile(file) {
           for (let px = 0; px < imgData.data.length; px += 4) {
             const r = imgData.data[px], g2 = imgData.data[px+1],
                   b = imgData.data[px+2], a  = imgData.data[px+3];
-            if (a > 128 && (r < 180 || g2 < 180 || b < 180)) { hits++; break; }
+            if (a > 128 && r < 80 && g2 < 80 && b < 80) { hits++; break; }
           }
         } catch(_) {}
       }
@@ -636,7 +636,7 @@ async function parsePDFFile(file) {
         for (let px = 0; px < imgData.data.length; px += 4) {
           const r = imgData.data[px], g2 = imgData.data[px+1],
                 b = imgData.data[px+2], a  = imgData.data[px+3];
-          if (a > 128 && (r < 180 || g2 < 180 || b < 180)) { isChecked = true; break; }
+          if (a > 128 && r < 80 && g2 < 80 && b < 80) { isChecked = true; break; }
         }
       } catch (_) {
         isChecked = true;
