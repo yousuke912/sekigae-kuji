@@ -209,7 +209,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
           <div class="how-step-num">3</div>
           <div class="how-step-body">
             <strong>照合結果を確認 → 「この人数で設定する」</strong><br>
-            CSVの氏名と入会管理CSVを照合し、<em>初回決済日</em>からカテゴリを自動判定。「この人数で設定する」で下の入力欄に反映されます。
+            CSVの氏名と入会管理CSVを照合し、<em>決済回数</em>からカテゴリを自動判定（5回以下＝6ヶ月未満、6回以上＝6ヶ月以上）。「この人数で設定する」で下の入力欄に反映されます。
           </div>
         </div>
         <div class="how-step">
@@ -273,7 +273,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
     <div class="result-summary" id="resultSummary"></div>
     <div class="tbl-wrap">
       <table class="tbl">
-        <thead><tr><th>#</th><th>氏名</th><th>初回決済日</th><th>カテゴリ</th></tr></thead>
+        <thead><tr><th>#</th><th>氏名</th><th>決済回数</th><th>カテゴリ</th></tr></thead>
         <tbody id="resultBody"></tbody>
       </table>
     </div>
@@ -363,13 +363,9 @@ function monthsDiff(fromDate, toDate) {
        + (toDate.getMonth() - fromDate.getMonth());
 }
 
-function categorize(joinDateStr, eventDate) {
-  const d = parseJpDate(joinDateStr);
-  if (!d) return 'unmatched';
-  const months = monthsDiff(d, eventDate);
-  if (months <= 0) return 'first_time';   // 当月入会
-  if (months <= 6) return 'within_6m';
-  return 'over_6m';
+function categorizeByPayCount(payCount) {
+  if (payCount <= 5) return 'within_6m';   // 決済回数5回以下 → 6ヶ月未満
+  return 'over_6m';                         // 決済回数6回以上 → 6ヶ月以上
 }
 
 // ============================================================
@@ -406,7 +402,8 @@ function buildMemberMap(csvText) {
   // Column indices for this specific CSV format
   const NAME_COL   = 6;   // 氏名
   const STATUS_COL = 4;   // ステータス
-  const DATE_COL   = 25;  // 初回決済日
+  const DATE_COL   = 26;  // 初回決済日
+  const PAY_COUNT_COL = 27; // 決済回数（AB列）
 
   const map = new Map();
   let count = 0;
@@ -419,9 +416,10 @@ function buildMemberMap(csvText) {
     const name     = normName(r[NAME_COL]   || '');
     const status   = (r[STATUS_COL] || '').trim();
     const joinDate = (r[DATE_COL]   || '').trim();
+    const payCount = parseInt((r[PAY_COUNT_COL] || '').trim()) || 0;
 
     if (name) {
-      map.set(name, { joinDate, status });
+      map.set(name, { joinDate, status, payCount });
       count++;
     }
   }
@@ -653,21 +651,27 @@ function showMatchResults(attendees) {
     seen.add(att.name);
 
     const match = fuzzyLookup(att.name);
-    let cat, joinDate, confidence;
+    let cat, joinDate, payCount, confidence;
 
     if (match) {
       joinDate   = match.joinDate;
+      payCount   = match.payCount;
       confidence = match.confidence;
-      cat        = categorize(joinDate, eventDate);
-      if (att.hint === 'first_time') cat = 'first_time';
+      // 初参加ヒントがあれば最優先
+      if (att.hint === 'first_time') {
+        cat = 'first_time';
+      } else {
+        cat = categorizeByPayCount(payCount);
+      }
     } else {
       joinDate   = '—';
+      payCount   = 0;
       confidence = 'unmatched';
-      cat        = att.hint || 'unmatched';
+      cat        = att.hint === 'first_time' ? 'first_time' : 'unmatched';
     }
 
     counts[cat] = (counts[cat] || 0) + 1;
-    rows.push({ name: att.rawName, joinDate, cat, confidence,
+    rows.push({ name: att.rawName, joinDate, payCount, cat, confidence,
                 matchedTo: match?.originalName || null });
   }
 
@@ -697,7 +701,7 @@ function showMatchResults(attendees) {
     return `<tr>
       <td>${i+1}</td>
       <td>${nameCell}</td>
-      <td>${r.joinDate}</td>
+      <td>${r.confidence === 'unmatched' ? '—' : r.payCount + '回'}</td>
       <td><span class="cat-badge ${r.cat}">${catLabel[r.cat]}</span>${confBadge}</td>
     </tr>`;
   }).join('');
