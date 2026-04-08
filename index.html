@@ -492,21 +492,66 @@ async function parsePDFFile(file) {
   const MEMBER_ID_RE = /^1\d{5}$/;
   const JP_RE = /[\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]/;
 
-  // 懇親会(I列)チェックボックスの位置 (pdfminer解析より確認済み)
-  // 外枠円: X=397.2〜402.7, 塗り矩形: X=397.8〜402.0
-  const CHECKBOX_X      = 400; // チェックボックス中心X (PDF座標, 単位:pt)
-  const CHECKBOX_Y_OFF  = 3;   // テキストベースラインより約3pt上がチェック中心
-  const SCALE           = 1.0; // レンダリング倍率
+  // チェックボックスX座標を自動検出（PDFごとに列位置が変わるため）
+  // 候補X座標を複数試し、最もチェックが多い列を採用する
+  const CANDIDATE_X = [348, 380, 400, 410, 443, 455];
+  const CHECKBOX_Y_OFF  = 3;
+  const SCALE           = 1.0;
 
+  // ── PASS 1: ページ1で最適なチェックボックスX座標を検出 ──
+  let bestX = 380; // デフォルト
+  {
+    const page1 = await pdf.getPage(1);
+    const vp1 = page1.getViewport({ scale: SCALE });
+    const cv1 = document.createElement('canvas');
+    cv1.width = vp1.width; cv1.height = vp1.height;
+    const cx1 = cv1.getContext('2d');
+    await page1.render({ canvasContext: cx1, viewport: vp1 }).promise;
+
+    const tc1 = await page1.getTextContent();
+    const grp1 = [];
+    tc1.items.forEach(item => {
+      if (!item.str.trim()) return;
+      const y = item.transform[5], x = item.transform[4];
+      let g = grp1.find(g => Math.abs(g.y - y) <= 3);
+      if (!g) { g = { y, items: [] }; grp1.push(g); }
+      g.items.push({ text: item.str.trim(), x });
+    });
+
+    // 会員番号がある行でチェックボックスをサンプリング
+    const memberRows = grp1.filter(g =>
+      g.items.some(it => MEMBER_ID_RE.test(it.text)));
+
+    let bestCount = 0;
+    for (const candX of CANDIDATE_X) {
+      let hits = 0;
+      for (const g of memberRows) {
+        const cX = Math.round(candX * SCALE);
+        const cY = Math.round(vp1.height - (g.y + CHECKBOX_Y_OFF) * SCALE);
+        try {
+          const imgData = cx1.getImageData(cX - 2, cY - 2, 4, 4);
+          for (let px = 0; px < imgData.data.length; px += 4) {
+            const r = imgData.data[px], g2 = imgData.data[px+1],
+                  b = imgData.data[px+2], a  = imgData.data[px+3];
+            if (a > 128 && (r < 180 || g2 < 180 || b < 180)) { hits++; break; }
+          }
+        } catch(_) {}
+      }
+      if (hits > bestCount) { bestCount = hits; bestX = candX; }
+    }
+    cv1.width = 0; cv1.height = 0;
+    console.log(`[席替え] チェックボックスX自動検出: X=${bestX} (${bestCount}/${memberRows.length}件ヒット)`);
+  }
+
+  // ── PASS 2: 全ページを処理 ──
   for (let pg = 1; pg <= total; pg++) {
     const pct = Math.round((pg / total) * 100);
     document.getElementById('progressFill').style.width = pct + '%';
     document.getElementById('progressText').textContent =
-      `${pg} / ${total} ページ処理中（懇親会チェック検出）...`;
+      `${pg} / ${total} ページ処理中（懇親会チェック検出 X=${bestX}）...`;
 
     const page = await pdf.getPage(pg);
 
-    // ── キャンバスレンダリング（チェックボックスはグラフィックなのでピクセルで判定）──
     const viewport = page.getViewport({ scale: SCALE });
     const canvas = document.createElement('canvas');
     canvas.width  = viewport.width;
@@ -514,7 +559,6 @@ async function parsePDFFile(file) {
     const ctx = canvas.getContext('2d');
     await page.render({ canvasContext: ctx, viewport }).promise;
 
-    // ── テキスト抽出 ──
     const tc = await page.getTextContent();
     const groups = [];
     tc.items.forEach(item => {
@@ -531,37 +575,40 @@ async function parsePDFFile(file) {
       const row   = g.items.sort((a, b) => a.x - b.x);
       const texts = row.map(r => r.text);
 
-      // 会員番号を探す
       const midIdx = texts.findIndex(t => MEMBER_ID_RE.test(t));
       if (midIdx < 0) continue;
 
-      // 氏名 = 会員番号直後の日本語テキスト
+      // 氏名 = 会員番号直後の日本語テキスト（スペース区切りの姓名も結合）
       let name = '';
       for (let j = midIdx + 1; j < texts.length; j++) {
-        if (JP_RE.test(texts[j]) && texts[j].length >= 2) { name = texts[j]; break; }
+        if (JP_RE.test(texts[j]) && texts[j].length >= 1) {
+          name = texts[j];
+          // 次のアイテムも日本語で近い位置なら姓名が分割されている→結合
+          if (j + 1 < texts.length && JP_RE.test(texts[j+1]) && texts[j+1].length >= 1) {
+            const gap = row[j+1].x - (row[j].x + texts[j].length * 5);
+            if (gap < 20) { name += texts[j+1]; }
+          }
+          break;
+        }
       }
-      if (!name) continue;
+      if (!name || name.length < 2) continue;
 
-      // ── 懇親会チェックボックスの判定（ピクセルサンプリング）──
-      // PDF Y はページ下端起点 → canvas Y はページ上端起点なので反転
-      const cX = Math.round(CHECKBOX_X * SCALE);
+      const cX = Math.round(bestX * SCALE);
       const cY = Math.round(viewport.height - (g.y + CHECKBOX_Y_OFF) * SCALE);
 
       let isChecked = false;
       try {
-        // チェックボックス内部の中心 4×4px をサンプリング（外枠の円を避ける）
         const imgData = ctx.getImageData(cX - 2, cY - 2, 4, 4);
         for (let px = 0; px < imgData.data.length; px += 4) {
           const r = imgData.data[px], g2 = imgData.data[px+1],
                 b = imgData.data[px+2], a  = imgData.data[px+3];
-          // 不透明 かつ 非白 → 塗りつぶし有 → チェック済み
           if (a > 128 && (r < 180 || g2 < 180 || b < 180)) { isChecked = true; break; }
         }
       } catch (_) {
-        isChecked = true; // getImageData 失敗時は安全側（含める）
+        isChecked = true;
       }
 
-      if (!isChecked) continue; // 懇親会チェックなし → スキップ
+      if (!isChecked) continue;
 
       const before = texts.slice(0, midIdx).join(' ');
       let hint = null;
@@ -571,7 +618,6 @@ async function parsePDFFile(file) {
       attendees.push({ name: normName(name), hint, rawName: name });
     }
 
-    // メモリ解放
     canvas.width = 0; canvas.height = 0;
   }
 
