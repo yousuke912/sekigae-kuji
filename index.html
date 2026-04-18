@@ -877,24 +877,33 @@ function renderCards(people, dt, total) {
     `${total}枚 / ${Math.ceil(padded.length/PER)}ページ`;
 }
 
-function downloadPDF() {
+async function downloadPDF() {
   const btn = document.querySelector('.btn-print');
   const orig = btn.textContent;
   btn.textContent = '⏳ 生成中...';
   btn.disabled = true;
 
-  const el = document.getElementById('cardsWrap');
-  const dt = document.getElementById('cardCountInfo').textContent.replace(/\s/g,'') || '席替えくじ';
-  html2pdf().set({
-    margin: 0,
-    filename: `席替えくじ_${dt}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  }).from(el).save().then(() => {
+  try {
+    const pages = document.querySelectorAll('.card-page');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const dt = document.getElementById('cardCountInfo').textContent.replace(/\s/g,'') || '席替えくじ';
+
+    for (let i = 0; i < pages.length; i++) {
+      if (i > 0) pdf.addPage();
+      const canvas = await html2canvas(pages[i], {
+        scale: 2, useCORS: true, logging: false,
+        width: pages[i].offsetWidth,
+        height: pages[i].offsetHeight
+      });
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
+    }
+
+    pdf.save(`席替えくじ_${dt}.pdf`);
+  } finally {
     btn.textContent = orig;
     btn.disabled = false;
-  });
+  }
 }
 
 function goBack() {
