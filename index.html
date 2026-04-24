@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>懇親会 席替えくじ v3</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
 :root { --primary: #2c5282; --green: #276749; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -888,15 +889,30 @@ async function downloadPDF() {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const dt = document.getElementById('cardCountInfo').textContent.replace(/\s/g,'') || '席替えくじ';
+    const A4W = 210, A4H = 297;
 
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) pdf.addPage();
+
       const canvas = await html2canvas(pages[i], {
-        scale: 2, useCORS: true, logging: false,
-        width: pages[i].offsetWidth,
-        height: pages[i].offsetHeight
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        scrollX: 0,
+        scrollY: -window.scrollY
       });
-      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297);
+
+      // アスペクト比を保ちつつA4に収める
+      const cw = canvas.width, ch = canvas.height;
+      const imgW = A4W;
+      const imgH = (ch / cw) * A4W;
+      const yOff = (A4H - imgH) / 2;
+
+      pdf.addImage(
+        canvas.toDataURL('image/jpeg', 0.95),
+        'JPEG',
+        0, Math.max(0, yOff), imgW, Math.min(imgH, A4H)
+      );
     }
 
     pdf.save(`席替えくじ_${dt}.pdf`);
