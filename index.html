@@ -787,14 +787,37 @@ function generateSeating(tc, pt, tax, mob, ft, w6, o6) {
     return r1;
   }
 
-  function derange(r1) {
-    const r2 = new Array(r1.length).fill(-1);
-    const grp = {};
-    for (let t = 0; t < tc; t++) grp[t] = [];
-    r1.forEach((t, i) => { if (t >= 0) grp[t].push(i); });
-    for (let t = 0; t < tc; t++)
-      grp[t].forEach((idx, rank) => { r2[idx] = (t + rank + 1) % tc; });
-    return r2;
+  // 全員まとめてR2を決める（カテゴリをまたいでかぶらないように）
+  // R1で同じテーブルにいた人を、R2では全員別テーブルに散らす
+  function globalR2(allR1Groups) {
+    // 全員にグローバルidxを付与してフラット化
+    const flat = [];
+    allR1Groups.forEach((arr, cat) =>
+      arr.forEach((r1, i) => flat.push({ cat, i, r1 }))
+    );
+
+    // R1テーブルごとにグループ化してシャッフル（ランダム性）
+    const byTable = Array.from({ length: tc }, () => []);
+    flat.forEach(p => { if (p.r1 >= 0) byTable[p.r1].push(p); });
+    for (let t = 0; t < tc; t++) {
+      for (let j = byTable[t].length - 1; j > 0; j--) {
+        const k = Math.floor(Math.random() * (j + 1));
+        [byTable[t][j], byTable[t][k]] = [byTable[t][k], byTable[t][j]];
+      }
+    }
+
+    // 同じR1テーブルの人はrank分だけずらして全員別R2テーブルへ
+    // (t + rank + 1) % tc → 自分のテーブルには戻らず、全員バラバラに
+    for (let t = 0; t < tc; t++) {
+      byTable[t].forEach((p, rank) => { p.r2 = (t + rank + 1) % tc; });
+    }
+
+    // カテゴリごとのr2配列に戻す
+    return allR1Groups.map((arr, cat) => {
+      const r2 = new Array(arr.length).fill(-1);
+      flat.filter(p => p.cat === cat).forEach(p => { r2[p.i] = p.r2; });
+      return r2;
+    });
   }
 
   const people = [];
@@ -805,19 +828,18 @@ function generateSeating(tc, pt, tax, mob, ft, w6, o6) {
   // Tax: round-robin, stays both rounds
   assignEvenly(tax, 0).forEach(t => people.push({type:'tax',r1:tblLabel(t),r2:tblLabel(t)}));
 
-  // 初めての方
-  const ftR1 = assignEvenly(ft, 0), ftR2 = derange(ftR1);
+  // 移動組のR1を一括割り当て
+  const ftR1 = assignEvenly(ft,  0);
+  const w6R1 = assignEvenly(w6,  Math.floor(tc / 3));
+  const o6R1 = assignEvenly(o6,  Math.floor(tc * 2 / 3));
+
+  // 全カテゴリまとめてR2を決定（かぶり最小化）
+  const [ftR2, w6R2, o6R2] = globalR2([ftR1, w6R1, o6R1]);
+
   ftR1.forEach((t,i) => people.push({type:'first_time',r1:tblLabel(t),r2:tblLabel(ftR2[i])}));
+  w6R1.forEach((t,i) => people.push({type:'within_6m', r1:tblLabel(t),r2:tblLabel(w6R2[i])}));
+  o6R1.forEach((t,i) => people.push({type:'over_6m',   r1:tblLabel(t),r2:tblLabel(o6R2[i])}));
 
-  // 6ヶ月以内 (staggered start for even spread)
-  const w6R1 = assignEvenly(w6, Math.floor(tc/3)), w6R2 = derange(w6R1);
-  w6R1.forEach((t,i) => people.push({type:'within_6m',r1:tblLabel(t),r2:tblLabel(w6R2[i])}));
-
-  // 6ヶ月以上
-  const o6R1 = assignEvenly(o6, Math.floor(tc*2/3)), o6R2 = derange(o6R1);
-  o6R1.forEach((t,i) => people.push({type:'over_6m',r1:tblLabel(t),r2:tblLabel(o6R2[i])}));
-
-  // Sort: special first (1ページ目にまとめ) → 初めて → 6ヶ月以内 → 6ヶ月以上
   const ord = {mobility:0,tax:1,first_time:2,within_6m:3,over_6m:4};
   people.sort((a,b) => ord[a.type] - ord[b.type]);
   return people;
