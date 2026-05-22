@@ -180,7 +180,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
 <body>
 
 <div class="page" id="formSection">
-  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v3.2 — ヘッダ動的検出＋自動振り分け</span></div>
+  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v3.3 — 読込順序を問わず照合</span></div>
   <h1>🎲 懇親会 席替えくじ</h1>
   <p class="subtitle">2つのCSVから自動でカテゴリ分けして席を決めます</p>
 
@@ -479,10 +479,14 @@ function loadCSVFile(file) {
     }
     memberMap = result.map;
     csvLoaded = true;
-    // キャッシュはしない（毎回最新CSVを読み込む運用のため）
     document.getElementById('csvStatus').className = 'step-status ok';
     document.getElementById('csvStatus').textContent = `✅ ${result.count}人読み込み済み`;
     document.getElementById('step1num').classList.add('done');
+
+    // 入会管理CSVを後から入れた場合、すでに参加者CSVが読み込まれていたら再照合
+    if (window._lastAttendees && window._lastAttendees.length) {
+      showMatchResults(window._lastAttendees);
+    }
   };
   reader.readAsText(file, 'UTF-8');
 }
@@ -595,6 +599,8 @@ function loadAttendeeFile(file) {
       }
     }
 
+    // 後から入会管理CSVを読み込んだ場合の再照合用に保存
+    window._lastAttendees = result.attendees;
     showMatchResults(result.attendees);
 
     document.getElementById('attendeeStatus').className = 'step-status ok';
