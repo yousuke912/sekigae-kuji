@@ -180,7 +180,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
 <body>
 
 <div class="page" id="formSection">
-  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v3.3 — 読込順序を問わず照合</span></div>
+  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v3.4 — 日付ズレ修正</span></div>
   <h1>🎲 懇親会 席替えくじ</h1>
   <p class="subtitle">2つのCSVから自動でカテゴリ分けして席を決めます</p>
 
@@ -590,11 +590,11 @@ function loadAttendeeFile(file) {
       return;
     }
 
-    // Set event date from CSV
+    // Set event date from CSV（ローカルタイムのまま文字列化。toISOStringはUTC変換で1日ズレるので使わない）
     if (result.eventDateStr) {
       const d = parseJpDate(result.eventDateStr);
       if (d) {
-        const iso = d.toISOString().slice(0, 10);
+        const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
         document.getElementById('eventDate').value = iso;
       }
     }
