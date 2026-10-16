@@ -180,7 +180,7 @@ h1 { font-size: 21px; font-weight: 700; color: var(--primary); text-align: cente
 <body>
 
 <div class="page" id="formSection">
-  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v3.4 — 日付ズレ修正</span></div>
+  <div style="text-align:center;margin-bottom:6px;"><span class="badge">v3.5 — PDFフォント崩れ修正</span></div>
   <h1>🎲 懇親会 席替えくじ</h1>
   <p class="subtitle">2つのCSVから自動でカテゴリ分けして席を決めます</p>
 
@@ -960,11 +960,17 @@ async function downloadPDF() {
   btn.disabled = true;
 
   try {
+    // 全フォントの準備完了を待つ（2ページ目以降でフォントが崩れる問題対策）
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
     const pages = document.querySelectorAll('.card-page');
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const dt = document.getElementById('cardCountInfo').textContent.replace(/\s/g,'') || '席替えくじ';
     const A4W = 210, A4H = 297;
+    const BODY_FONT = "'Hiragino Kaku Gothic ProN','Meiryo',sans-serif";
 
     for (let i = 0; i < pages.length; i++) {
       if (i > 0) pdf.addPage();
@@ -974,8 +980,22 @@ async function downloadPDF() {
         useCORS: true,
         logging: false,
         scrollX: 0,
-        scrollY: -window.scrollY
+        scrollY: -window.scrollY,
+        // クローンされたDOMに明示的にフォントを再適用（2ページ目以降の崩れ防止）
+        onclone: (clonedDoc) => {
+          const style = clonedDoc.createElement('style');
+          style.textContent = `
+            body, .card-page, .card-page * {
+              font-family: ${BODY_FONT} !important;
+              -webkit-font-smoothing: antialiased;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+        }
       });
+
+      // 各ページ描画後に少し待ってフォントキャッシュを安定させる
+      await new Promise(r => setTimeout(r, 30));
 
       // アスペクト比を保ちつつA4に収める
       const cw = canvas.width, ch = canvas.height;
